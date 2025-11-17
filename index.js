@@ -522,10 +522,9 @@ app.get("/tpo/addstudent", (req, res) => {
 });
 // -> Import Excel Data to MySQL database
 
-async function importExcelData2MySQL(filePath) {
+async function importExcelData2MySQL(filePath, res) {
   try {
     const rows = await readXlsxFile(filePath);
-    console.log("Excel rows read:", rows);
 
     // Remove header row
     const header = rows.shift();
@@ -580,7 +579,7 @@ async function importExcelData2MySQL(filePath) {
         row[16], // is_placed
       ];
     });
-
+    console.log("Prepared student rows for insertion:", studentRows);
     const sql = `
       INSERT INTO student 
       (sname, semail, spass, collegename, age, city, gender, smobileno, 
@@ -589,10 +588,20 @@ async function importExcelData2MySQL(filePath) {
       VALUES ?
     `;
 
-    const [response] = await dbConnection.query(sql, [studentRows]);
-    console.log("Data inserted successfully:", response);
+    dbConnection.query(sql, [studentRows], function (err, data) {
+      if (err) throw err;
+      console.log("Number of records inserted: " + data.affectedRows);
+      res.render("tpo/addstudent", {
+        message: "Data imported successfully!",
+        status: "success",
+      });
+    });
   } catch (error) {
     console.error("Error during Excel import:", error);
+    res.render("tpo/addstudent", {
+      message: "Error importing data: " + error.message,
+      status: "danger",
+    });
     throw error;
   }
 }
@@ -618,20 +627,9 @@ app.post("/tpo/addstudent", upload.single("uploadfile"), async (req, res) => {
       path.join(__basedir, "uploads", req.file.filename)
     );
     const result = await importExcelData2MySQL(
-      path.join(__basedir, "uploads", req.file.filename)
+      path.join(__basedir, "uploads", req.file.filename),
+      res
     );
-
-    if (result === 5) {
-      return res.render("tpo/addstudent", {
-        message: "Excel format is incorrect. Required 15 columns.",
-        status: "danger",
-      });
-    }
-
-    res.render("tpo/addstudent", {
-      message: "Data imported successfully!",
-      status: "success",
-    });
   } catch (error) {
     console.error(error);
     res.render("tpo/addstudent", {
