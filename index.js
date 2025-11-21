@@ -1650,6 +1650,7 @@ app.get("/company/deleterejectedjob/:id", (req, res) => {
   );
 });
 //END OF COMPANY ACCEPTED REQUEST PAGE
+
 //Student Module
 const ifNotLoggedins = (req, res, next) => {
   if (!req.session.isLoggedIn) {
@@ -1666,38 +1667,88 @@ const ifLoggedins = (req, res, next) => {
 };
 // END OF CUSTOM MIDDLEWARE
 // STUDENT LOGIN SIGNUP PAGE
-app.get("/student/login", ifNotLoggedins, (req, res, next) => {
-  dbConnection
-    .promise()
-    .execute("SELECT `sname` FROM `student` WHERE `sid`=?", [
-      req.session.userID,
-    ])
-    .then(([rows]) => {
-      // Check if rows is not empty
-      if (rows.length > 0) {
-        // If student found, render the page with the student's name
-        res.render("student/studenthome", {
-          sname: rows[0].sname,
-        });
-      } else {
-        // Handle the case where no student is found
-        res.status(404).send("Student not found");
-      }
-    })
-    .catch((err) => {
-      console.error("Database query error:", err);
-      res.status(500).send("Internal Server Error");
-    });
+
+app.get("/student/login", ifLoggedins, (req, res) => {
+  // This is the route that simply displays your login form
+  res.render("student/login", { login_errors: [] });
 });
 
+app.post(
+  "/student/login",
+  ifLoggedins,
+  [
+    // Validate that the email exists in the database
+    body("user_email").custom((value) => {
+      return dbConnection
+        .promise()
+        .execute("SELECT `semail` FROM `student` WHERE `semail`=?", [value])
+        .then(([rows]) => {
+          if (rows.length == 1) {
+            return true;
+          }
+          return Promise.reject("Invalid Email Address!");
+        });
+    }),
+    // Validate that the password field is not empty
+    body("user_pass", "Password is empty!").trim().not().isEmpty(),
+  ],
+  (req, res) => {
+    const validation_result = validationResult(req);
+    const { user_pass, user_email } = req.body;
+
+    if (validation_result.isEmpty()) {
+      dbConnection
+        .promise()
+        .execute("SELECT * FROM `student` WHERE `semail`=?", [user_email])
+        .then(([rows]) => {
+          if (rows.length === 0) {
+            // Should not happen if email validation above worked, but included for safety
+            return res.render("student/login", {
+              login_errors: ["Email not found!"],
+            });
+          }
+
+          bcrypt
+            .compare(user_pass, rows[0].spass)
+            .then((compare_result) => {
+              if (compare_result === true) {
+                // Credentials match, set up the session
+                req.session.isLoggedIn = true;
+                req.session.userID = rows[0].sid;
+                req.session.sid = rows[0].sid;
+
+                // Redirect to student home
+                res.redirect("/student/studenthome");
+              } else {
+                // Password incorrect
+                res.render("student/login", {
+                  login_errors: ["Invalid Password!"],
+                });
+              }
+            })
+            .catch((err) => {
+              console.error(err);
+              res.status(500).send("Internal Server Error (Password Check)");
+            });
+        })
+        .catch((err) => {
+          console.error(err);
+          res.status(500).send("Internal Server Error (Database Query)");
+        });
+    } else {
+      // Validation failed (e.g., empty password field)
+      let allErrors = validation_result.errors.map((error) => error.msg);
+      res.render("student/login", { login_errors: allErrors });
+    }
+  }
+);
 app.get("/student/signup", function (req, res) {
   res.render("student/signup");
 });
-// REGISTER PAGE
+
 app.post(
   "/student/signup",
   ifLoggedins,
-  // post data validation(using express-validator)
   [
     body("user_email", "Invalid email address!")
       .isEmail()
@@ -1712,119 +1763,51 @@ app.post(
             return true;
           });
       }),
-    body("user_name", "Studentname is Empty!").trim().not().isEmpty(),
+    body("user_fname", "First Name is Empty!").trim().not().isEmpty(),
+    body("user_lname", "Last Name is Empty!").trim().not().isEmpty(),
     body("user_pass", "The password must be of minimum length 6 characters")
       .trim()
       .isLength({ min: 6 }),
+    body("confirm_pass", "Passwords do not match!")
+      .trim()
+      .custom((value, { req }) => value === req.body.user_pass),
     body("collagename", "Collagename is Empty!").trim().not().isEmpty(),
-  ], // end of post data validation
+  ],
   (req, res, next) => {
     const validation_result = validationResult(req);
-    const { user_name, user_pass, user_email, collagename } = req.body;
-    // IF validation_result HAS NO ERROR
+    const { user_fname, user_lname, user_pass, user_email, collagename } =
+      req.body;
+    const user_name = `${user_fname} ${user_lname}`;
+
     if (validation_result.isEmpty()) {
-      // password encryption (using bcryptjs)
       bcrypt
         .hash(user_pass, 12)
         .then((hash_pass) => {
-          // INSERTING USER INTO DATABASE
           dbConnection
             .promise()
             .execute(
               "INSERT INTO `student`(`sname`, `semail`, `spass`, `collegename`, `isverified`) VALUES(?,?,?,?,?)",
               [user_name, user_email, hash_pass, collagename, 0]
-            ) // 0 means unverified
-
-            //dbConnection.promise().execute("INSERT INTO `academicdetail`(sid,collegename) SELECT a.sid a.collegename FROM student s INNER JOIN academicdetail a ON a.sid=s.sid ")
+            )
             .then((result) => {
               me = "you add!";
-              // res.render('student/signup',{message:me});
               res.redirect("/student/login");
             })
             .catch((err) => {
-              // THROW INSERTING USER ERROR'S
               if (err) throw err;
             });
         })
         .catch((err) => {
-          // THROW HASING ERROR'S
           if (err) throw err;
         });
     } else {
-      // COLLECT ALL THE VALIDATION ERRORS
       let allErrors = validation_result.errors.map((error) => {
         return error.msg;
       });
-      // REDERING login-register PAGE WITH VALIDATION ERRORS
       res.render("student/signup", {
-        register_error: allErrors,
+        signup_errors: allErrors,
         old_data: req.body,
       });
-    }
-  }
-); // END OF REGISTER PAGE
-// LOGIN PAGE
-app.post(
-  "/student/login",
-  ifLoggedins,
-  [
-    body("user_email").custom((value) => {
-      return dbConnection
-        .promise()
-        .execute("SELECT `semail` FROM `student` WHERE `semail`=?", [value])
-        .then(([rows]) => {
-          if (rows.length == 1) {
-            return true;
-          }
-          return Promise.reject("Invalid Email Address!");
-        });
-    }),
-    body("user_pass", "Password is empty!").trim().not().isEmpty(),
-  ],
-  (req, res) => {
-    const validation_result = validationResult(req);
-    const { user_pass, user_email } = req.body;
-
-    if (validation_result.isEmpty()) {
-      dbConnection
-        .promise()
-        .execute("SELECT * FROM `student` WHERE `semail`=?", [user_email])
-        .then(([rows]) => {
-          if (rows.length === 0) {
-            return res.render("student/login", {
-              login_errors: ["Email not found!"],
-            });
-          }
-
-          bcrypt
-            .compare(user_pass, rows[0].spass)
-            .then((compare_result) => {
-              if (compare_result === true) {
-                // ✅ Store login session info
-                req.session.isLoggedIn = true;
-                req.session.userID = rows[0].sid;
-                req.session.sid = rows[0].sid; // ✅ Store student ID for resume upload
-
-                // Redirect to student home
-                res.redirect("/student/studenthome");
-              } else {
-                res.render("student/login", {
-                  login_errors: ["Invalid Password!"],
-                });
-              }
-            })
-            .catch((err) => {
-              console.error(err);
-              res.status(500).send("Internal Server Error");
-            });
-        })
-        .catch((err) => {
-          console.error(err);
-          res.status(500).send("Internal Server Error");
-        });
-    } else {
-      let allErrors = validation_result.errors.map((error) => error.msg);
-      res.render("student/login", { login_errors: allErrors });
     }
   }
 );
