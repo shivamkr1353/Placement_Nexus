@@ -49,6 +49,7 @@ RUN echo "#!/bin/bash" > start.sh && \
 
 # Expose the port
 EXPOSE 8000
+RUN mkdir -p /app/uploads
 
 # Run the script when container starts
 CMD ["./start.sh"]

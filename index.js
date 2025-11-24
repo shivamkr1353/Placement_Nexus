@@ -615,25 +615,19 @@ app.post("/tpo/addstudent", upload.single("uploadfile"), async (req, res) => {
       });
     }
 
-    const ext = path.extname(req.file.originalname).toLowerCase();
-    if (ext !== ".xls" && ext !== ".xlsx") {
-      return res.render("tpo/addstudent", {
-        message: "Uploaded file is not an Excel file!",
-        status: "danger",
-      });
+    const filePath = path.join(__basedir, "uploads", req.file.filename);
+
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
     }
-    console.log(
-      "File uploaded:",
-      path.join(__basedir, "uploads", req.file.filename)
-    );
-    const result = await importExcelData2MySQL(
-      path.join(__basedir, "uploads", req.file.filename),
-      res
-    );
+
+    console.log("File uploaded and found:", filePath);
+
+    await importExcelData2MySQL(filePath, res);
   } catch (error) {
     console.error(error);
     res.render("tpo/addstudent", {
-      message: "Error importing Excel file.",
+      message: "Error importing Excel file: " + error.message,
       status: "danger",
     });
   }
