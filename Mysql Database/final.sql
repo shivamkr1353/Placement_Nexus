@@ -152,7 +152,7 @@ CREATE TABLE `student` (
   `spass` varchar(500) NOT NULL,
   `collegename` varchar(50) NOT NULL,
   `age` decimal(3,0) NOT NULL,
-  `city` varchar(50) NOT NULL,
+  `city` varchar(50) NOT NULL DEFAULT '',
   `gender` varchar(50) NOT NULL,
   `smobileno` decimal(10,0) NOT NULL,
   `isverified` varchar(50) NOT NULL DEFAULT 'NO',
