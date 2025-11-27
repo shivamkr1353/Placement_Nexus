@@ -46,7 +46,7 @@ RUN echo "#!/bin/bash" > start.sh && \
     echo "echo 'Starting Node.js App...'" >> start.sh && \
     echo "nodemon index.js" >> start.sh && \
     chmod +x start.sh
-
+RUN npm install -g nodemon
 # Expose the port
 EXPOSE 8000
 RUN mkdir -p /app/uploads
