@@ -44,7 +44,7 @@ RUN echo "#!/bin/bash" > start.sh && \
     # --- CHANGED: SET PASSWORD SECOND ---
     echo "mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED VIA mysql_native_password USING PASSWORD('root');\"" >> start.sh && \
     echo "echo 'Starting Node.js App...'" >> start.sh && \
-    echo "node index.js" >> start.sh && \
+    echo "nodemon index.js" >> start.sh && \
     chmod +x start.sh
 
 # Expose the port

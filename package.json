@@ -24,7 +24,7 @@
     "multer-s3": "^3.0.1",
     "mysql2": "^2.3.3",
     "nodeman": "^1.1.2",
-    "nodemon": "^2.0.7",
+    "nodemon": "^2.0.22",
     "path": "^0.12.7",
     "read-excel-file": "^5.0.0",
     "req-flash": "0.0.3",
